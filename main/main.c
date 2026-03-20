@@ -5,52 +5,40 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include "pico/stdlib.h"
 #include "hardware/gpio.h"
 
 const int start_btn_pin = 11;
-const int btn_pins[] = {12, 13, 14, 15};
+const int btn_pins[] = {15, 14, 13, 12};
 const int led_pins[] = {16, 17, 18, 19};
-// Azul, Vermelho, Verde, Amarelo
 
 volatile int start_f = 0;
-volatile int f_btn_y = 0;
-volatile int f_btn_w = 0;
-volatile int f_btn_p = 0;
-volatile int f_btn_b = 0;
-volatile int pressed = 0;
+volatile int pressed_btn = -1;
 
 void btn_callback(uint gpio, uint32_t events) {
-    if (events == 0x4) { // fall edge
-        switch (gpio) {
-        case 12:
-            f_btn_y = 1;
-            break;
-        case 13:
-            f_btn_w = 1;
-            break;
-        case 14:
-            f_btn_p = 1;
-            break;
-        case 15:
-            f_btn_b = 1;
-            break;
-        case 11:
-            start_f = 1;
-            break;
-        default:
-            break;
-        }
+    if (gpio == start_btn_pin) {
+        start_f = 1;
+        return;
+    }
 
-        pressed = 1;
+    for (int i = 0; i < 4; i++) {
+        if ((int)gpio == btn_pins[i]) {
+            pressed_btn = i;
+            return;
+        }
     }
 }
 
 int main() {
     stdio_init_all();
 
-    int sequence[5] = {19, 17, 17, 18, 16};
+    // Sequencia dinamica com elementos aleatorios (ate 10 niveis).
+    int sequence[10] = {0};
     int level = 0;
+
+    // Inicializa gerador de numeros aleatorios.
+    srand(time_us_32());
 
     gpio_init(start_btn_pin);
     gpio_set_dir(start_btn_pin, GPIO_IN);
@@ -72,48 +60,103 @@ int main() {
         gpio_set_dir(led_pins[i], GPIO_OUT);
     }
 
+    for (int i = 0; i < 4; i++) {
+        gpio_put(led_pins[i], 1);
+        sleep_ms(120);
+        gpio_put(led_pins[i], 0);
+    }
+
     while (true) {
 
         if (start_f) {
-            int acertos = 0;
+            level = 1;
 
-            if (level < 5) {
-                for (int i = 0; i <= level; i++) {
-                    gpio_put(sequence[i], 1);
-                    sleep_ms(250);
-                    gpio_put(sequence[i], 0);
-                }
+            // Gera primeiro elemento aleatorio.
+            sequence[0] = rand() % 4;
 
-                for (int i = 0; i <= level; i++) {
-                    while (!pressed) {
-                        sleep_ms(1);
-                    }
+            while (level) {
+                int acertos = 0;
+                printf("nivel %d\n", level);
 
-                    if (sequence[i] == 16 & f_btn_y ||
-                        sequence[i] == 17 & f_btn_w ||
-                        sequence[i] == 18 & f_btn_p ||
-                        sequence[i] == 19 & f_btn_b) {
-                        if (acertos == level + 1) {
-                            acertos = 0;
-                            level++;
-                        } else {
-                            acertos++;
+                if (level < 11) {
+                    for (int i = 0; i < level; i++) {
+                        for (int j = 0; j < 4; j++) {
+                            gpio_put(led_pins[j], 0);
                         }
 
-                        f_btn_y = 0;
-                        f_btn_w = 0;
-                        f_btn_p = 0;
-                        f_btn_b = 0;
-                    } else {
-                        level = 0;
-                        printf("perdeu otario do krl\n");
-                        start_f = 0;
+                        gpio_put(led_pins[sequence[i]], 1);
+                        sleep_ms(500);
+                        gpio_put(led_pins[sequence[i]], 0);
+                        sleep_ms(120);
+                    }
+
+                    for (int i = 0; i < level; i++) {
+                        pressed_btn = -1;
+
+                        while (pressed_btn < 0) {
+                            sleep_ms(1);
+                        }
+
+                        if (sequence[i] == pressed_btn) {
+                            acertos++;
+
+                            gpio_put(led_pins[pressed_btn], 1);
+                            sleep_ms(250);
+                            gpio_put(led_pins[pressed_btn], 0);
+
+                            if (acertos == level) {
+                                acertos = 0;
+                                if (level < 10) {
+                                    // Gera novo elemento aleatorio para proximo nivel.
+                                    sequence[level] = rand() % 4;
+                                }
+                                level++;
+                                break;
+                            }
+
+                            sleep_ms(250);
+                        } else {
+                            level = 0;
+
+                            for (int j = 0; j < 4; j++) {
+                                gpio_put(led_pins[j], 1);
+                            }
+
+                            sleep_ms(500);
+
+                            for (int j = 0; j < 4; j++) {
+                                gpio_put(led_pins[j], 0);
+                            }
+
+                            printf("perdeu otario do krl\n");
+                            start_f = 0;
+                            break;
+                        }
+                    }
+                } else {
+                    printf("Ganhou");
+                    level = 0;
+                    start_f = 0;
+
+                    for (int i = 0; i < 4; i++) {
+                        gpio_put(led_pins[i], 1);
+                        sleep_ms(200);
+                    }
+
+                    for (int i = 0; i < 4; i++) {
+                        gpio_put(led_pins[i], 0);
+                        sleep_ms(200);
+                    }
+
+                    for (int i = 0; i < 4; i++) {
+                        gpio_put(led_pins[i], 1);
+                        sleep_ms(200);
+                    }
+
+                    for (int i = 0; i < 4; i++) {
+                        gpio_put(led_pins[i], 0);
                     }
                 }
-            } else {
-                printf("Ganhou");
-                level = 0;
-                start_f = 0;
             }
         }
     }
