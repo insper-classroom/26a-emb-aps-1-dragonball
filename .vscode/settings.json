@@ -17,6 +17,19 @@
     "cmake.configureOnOpen": false,
     "cmake.generator": "Ninja",
     "cmake.cmakePath": "${userHome}/.pico-sdk/cmake/v3.31.5/bin/cmake",
+    "C_Cpp.default.compileCommands": "${workspaceFolder}/build/compile_commands.json",
+    "C_Cpp.default.compilerPath": "C:/Users/lorag/.pico-sdk/toolchain/14_2_Rel1/bin/arm-none-eabi-gcc.exe",
+    "C_Cpp.default.intelliSenseMode": "windows-gcc-arm",
+    "C_Cpp.default.configurationProvider": "",
+    "C_Cpp.default.includePath": [
+        "${workspaceFolder}/main/**",
+        "${workspaceFolder}/build/generated/pico_base/**",
+        "C:/Users/lorag/.pico-sdk/sdk/2.2.0/src/rp2_common/hardware_spi/include",
+        "C:/Users/lorag/.pico-sdk/sdk/2.2.0/src/rp2_common/hardware_gpio/include",
+        "C:/Users/lorag/.pico-sdk/sdk/2.2.0/src/rp2_common/hardware_base/include",
+        "C:/Users/lorag/.pico-sdk/sdk/2.2.0/src/common/pico_base_headers/include",
+        "C:/Users/lorag/.pico-sdk/sdk/2.2.0/src/**"
+    ],
     "C_Cpp.debugShortcut": false,
     "terminal.integrated.env.windows": {
         "PICO_SDK_PATH": "${env:USERPROFILE}/.pico-sdk/sdk/2.2.0",
@@ -34,7 +47,7 @@
         "PATH": "${env:HOME}/.pico-sdk/toolchain/14_2_Rel1/bin:${env:HOME}/.pico-sdk/picotool/2.2.0-a4/picotool:${env:HOME}/.pico-sdk/cmake/v3.31.5/bin:${env:HOME}/.pico-sdk/ninja/v1.12.1:${env:PATH}"
     },
     "raspberry-pi-pico.cmakeAutoConfigure": true,
-    "raspberry-pi-pico.useCmakeTools": false,
+    "raspberry-pi-pico.useCmakeTools": true,
     "raspberry-pi-pico.cmakePath": "${HOME}/.pico-sdk/cmake/v3.31.5/bin/cmake",
     "raspberry-pi-pico.ninjaPath": "${HOME}/.pico-sdk/ninja/v1.12.1/ninja"
 }
