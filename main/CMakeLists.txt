@@ -29,6 +29,11 @@ target_include_directories(pico_emb PRIVATE
 
 
 target_link_libraries(pico_emb
+    hardware_dma
+    hardware_pio
+    hardware_timer
+    hardware_clocks
+    hardware_pwm
     pico_stdlib
     pico_multicore
     hardware_spi

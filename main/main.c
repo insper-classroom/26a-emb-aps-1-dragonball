@@ -17,29 +17,37 @@
 #include "tft_lcd_ili9341/touch_resistive/touch_resistive.h"
 #include "verde.h"
 #include "vermelho.h"
+#include "hardware/irq.h"
+#include "hardware/clocks.h"
+#include "hardware/pwm.h"
+#include "hardware/sync.h"
 
 // Propriedades do LCD
 #define SCREEN_ROTATION 1
 const int width = 320;
 const int height = 240;
-
 const int img_height = 120;
 const int img_width = 220;
 const int img_x = (width - img_width) / 2;
 const int img_y = (height - img_height) / 2;
+
+// Propriedades do audio
+int tamanho_audio;
+int* p_tamanho_audio = &tamanho_audio;
+uint8_t* p_audio;
+int wav_position = 0;
+const int AUDIO_OUT = 10; // Mudar pros pinos onde o audio for sair
+
 
 const int start_btn_pin = 11;
 // verde, azul, vermelho, amarelo
 const int btn_pins[] = {2, 3, 4, 5};
 const int led_pins[] = {6, 7, 8, 9};
 
-int tamanho_audio;
-int* p_tamanho_audio = &tamanho_audio;
-int* p_audio;
-
 volatile int start_f = 0;
 volatile int pressed_btn = -1;
 volatile int timer_f = 0;
+volatile int play_flag = 0;
 
 void draw_state(int state, int pontuacao, int level) {
     if (state == 0) {
@@ -75,6 +83,16 @@ void draw_state(int state, int pontuacao, int level) {
             width / 6,
             70,
             buffer);
+    }
+}
+
+void pwm_interruption_handler() {
+    pwm_clear_irq(pwm_gpio_to_slice_num(AUDIO_OUT));
+    if (wav_position < (*p_tamanho_audio << 3) -1) {
+        if (play_flag) {
+            pwm_set_gpio_level(AUDIO_OUT, p_audio[wav_position >> 3]);
+            wav_position++;
+        }
     }
 }
 
@@ -120,6 +138,16 @@ void btn_callback(uint gpio, uint32_t events) {
 
 int main() {
     stdio_init_all();
+    set_sys_clock_khz(176000, true);
+    gpio_set_function(AUDIO_OUT, GPIO_FUNC_PWM);
+
+    int audio_pin_slice = pwm_gpio_to_slice_num(AUDIO_OUT);
+    pwm_clear_irq(audio_pin_slice);
+    pwm_set_irq_enabled(audio_pin_slice, true);
+    irq_set_enabled(PWM_IRQ_WRAP, true);
+    pwm_config config = pwm_get_default_config();
+    pwm_config_set_clkdiv(&config, 8.0f);
+    pwm_config_set_wrap(&config, 250);
 
     int sequence[10] = {0};
     int max_level = sizeof(sequence);
