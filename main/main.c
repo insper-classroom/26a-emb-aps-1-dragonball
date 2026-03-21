@@ -6,14 +6,17 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include "pico/stdlib.h"
-#include "hardware/gpio.h"
 
+#include "amarelo.h"
+#include "azul.h"
+#include "hardware/gpio.h"
+#include "image_bitmap.h"
+#include "pico/stdlib.h"
 #include "tft_lcd_ili9341/gfx/gfx_ili9341.h"
 #include "tft_lcd_ili9341/ili9341/ili9341.h"
 #include "tft_lcd_ili9341/touch_resistive/touch_resistive.h"
-
-#include "image_bitmap.h"
+#include "verde.h"
+#include "vermelho.h"
 
 // Propriedades do LCD
 #define SCREEN_ROTATION 1
@@ -29,6 +32,10 @@ const int start_btn_pin = 11;
 // verde, azul, vermelho, amarelo
 const int btn_pins[] = {2, 3, 4, 5};
 const int led_pins[] = {6, 7, 8, 9};
+
+int tamanho_audio;
+int* p_tamanho_audio = &tamanho_audio;
+int* p_audio;
 
 volatile int start_f = 0;
 volatile int pressed_btn = -1;
@@ -71,9 +78,9 @@ void draw_state(int state, int pontuacao, int level) {
     }
 }
 
-bool timer_0_callback(repeating_timer_t *rt) {
+bool timer_0_callback(repeating_timer_t* rt) {
     timer_f = 1;
-    return true; // keep repeating
+    return true;  // keep repeating
 }
 
 void btn_callback(uint gpio, uint32_t events) {
@@ -83,12 +90,35 @@ void btn_callback(uint gpio, uint32_t events) {
     }
 
     for (int i = 0; i < 4; i++) {
+        switch ((int)gpio) {
+            case 2:
+                tamanho_audio = VERDE_LENGTH;
+                *p_audio = VERDE_DATA;
+                break;
+            case 3:
+                tamanho_audio = AZUL_LENGTH;
+                *p_audio = AZUL_DATA;
+                break;
+            case 4:
+                tamanho_audio = VERMELHO_LENGTH;
+                p_audio = VERMELHO_DATA;
+                break;
+            case 5:
+                tamanho_audio = AMARELO_LENGTH;
+                *p_audio = AMARELO_DATA;
+                break;
+            default:
+                break;
+        }
+
         if ((int)gpio == btn_pins[i]) {
             pressed_btn = i;
             return;
         }
     }
-}int main() {
+}
+
+int main() {
     stdio_init_all();
 
     int sequence[10] = {0};
@@ -127,9 +157,7 @@ void btn_callback(uint gpio, uint32_t events) {
     draw_state(state, 0, 0);
 
     while (true) {
-
         if (start_f) {
-
             draw_state(state, 0, 0);
 
             for (int i = 0; i < 4; i++) {
