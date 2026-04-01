@@ -6,21 +6,35 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-
-#include "amarelo.h"
-#include "azul.h"
+#include "pico/stdlib.h"
 #include "hardware/gpio.h"
 #include "image_bitmap.h"
-#include "pico/stdlib.h"
 #include "tft_lcd_ili9341/gfx/gfx_ili9341.h"
 #include "tft_lcd_ili9341/ili9341/ili9341.h"
 #include "tft_lcd_ili9341/touch_resistive/touch_resistive.h"
 #include "verde.h"
 #include "vermelho.h"
+#include "amarelo.h"
+#include "azul.h"
 #include "hardware/irq.h"
 #include "hardware/clocks.h"
 #include "hardware/pwm.h"
 #include "hardware/sync.h"
+
+// Frames da animação da banana
+const uint8_t* banana_frames[] = {
+    banana1,
+    banana2,
+    banana3,
+    banana4,
+    banana5,
+    banana6,
+    banana7,
+    banana8,
+};
+const int banana_frame_count = 8;
+const int banana_height = 100;
+const int banana_width = 95;
 
 // Propriedades do LCD
 #define SCREEN_ROTATION 1
@@ -36,7 +50,7 @@ int tamanho_audio;
 int* p_tamanho_audio = &tamanho_audio;
 uint8_t* p_audio;
 int wav_position = 0;
-const int AUDIO_OUT = 10; // Mudar pros pinos onde o audio for sair
+const int AUDIO_OUT = 14; // Mudar pros pinos onde o audio for sair
 
 
 const int start_btn_pin = 11;
@@ -49,15 +63,18 @@ volatile int pressed_btn = -1;
 volatile int timer_f = 0;
 volatile int play_flag = 0;
 
-void draw_state(int state, int pontuacao, int level) {
+void draw_state(int state, int frame, int pontuacao, int level) {
     if (state == 0) {
+        gfx_fillRect(0, 0, width, height, 0x0000);
+        gfx_drawBitmap(img_x, img_y, logo_bitmap, img_width, img_height, 0xFFFF);
+    } else if (state == 1) {
         gfx_fillRect(0, 0, width, height, 0x0000);
         gfx_drawBitmap(img_x, img_y, logo_bitmap, img_width, img_height, 0xFFFF);
     } else {
         gfx_fillRect(0, 0, width, height, 0x0000);
         gfx_setTextSize(2);
 
-        if (state == 1) {
+        if (state == 2) {
             gfx_setTextColor(0x07E0);
             gfx_drawText(
                 width / 6,
@@ -101,6 +118,10 @@ bool timer_0_callback(repeating_timer_t* rt) {
     return true;  // keep repeating
 }
 
+void gpio_set_irq_callback(gpio_irq_callback_t callback) {
+    uint core = get_core_num();
+}
+
 void btn_callback(uint gpio, uint32_t events) {
     if (gpio == start_btn_pin) {
         start_f = 1;
@@ -111,11 +132,11 @@ void btn_callback(uint gpio, uint32_t events) {
         switch ((int)gpio) {
             case 2:
                 tamanho_audio = VERDE_LENGTH;
-                *p_audio = VERDE_DATA;
+                p_audio = VERDE_DATA;
                 break;
             case 3:
                 tamanho_audio = AZUL_LENGTH;
-                *p_audio = AZUL_DATA;
+                p_audio = AZUL_DATA;
                 break;
             case 4:
                 tamanho_audio = VERMELHO_LENGTH;
@@ -123,15 +144,34 @@ void btn_callback(uint gpio, uint32_t events) {
                 break;
             case 5:
                 tamanho_audio = AMARELO_LENGTH;
-                *p_audio = AMARELO_DATA;
+                p_audio = AMARELO_DATA;
                 break;
             default:
                 break;
         }
-
         if ((int)gpio == btn_pins[i]) {
             pressed_btn = i;
             return;
+        }
+    }
+}
+
+
+void core1_entry() {
+    int playing = multicore_fifo_pop_blocking();
+    int frame = 0;
+    int banana_x = (width - banana_width) / 2;
+    int banana_y = (height - banana_height) / 2;
+
+    while (1) {
+        if (multicore_fifo_rvalid()) {
+            playing = multicore_fifo_pop_blocking();
+        }
+
+        if (playing) {
+            gfx_drawBitmap(banana_x, banana_y, banana_frames[frame], banana_width, banana_height, 0xFFFF);
+            frame = (frame + 1) % banana_frame_count;
+            sleep_ms(100);
         }
     }
 }
@@ -140,6 +180,7 @@ int main() {
     stdio_init_all();
     set_sys_clock_khz(176000, true);
     gpio_set_function(AUDIO_OUT, GPIO_FUNC_PWM);
+    multicore_launch_core1(core1_entry);
 
     int audio_pin_slice = pwm_gpio_to_slice_num(AUDIO_OUT);
     pwm_clear_irq(audio_pin_slice);
@@ -153,6 +194,7 @@ int main() {
     int max_level = sizeof(sequence);
     int level = 0;
     int state = 0;
+    
 
     srand(time_us_32());
 
@@ -182,11 +224,12 @@ int main() {
         gpio_set_dir(led_pins[i], GPIO_OUT);
     }
 
-    draw_state(state, 0, 0);
+    draw_state(state, 0, 0, 0);
+    pwm_init(audio_pin_slice, &config, true);
 
     while (true) {
         if (start_f) {
-            draw_state(state, 0, 0);
+            multicore_fifo_push_blocking (0);
 
             for (int i = 0; i < 4; i++) {
                 gpio_put(led_pins[i], 1);
@@ -226,6 +269,7 @@ int main() {
                         }
 
                         gpio_put(led_pins[sequence[i]], 1);
+                        irq_set_exclusive_handler(PWM_IRQ_WRAP, pwm_interruption_handler);
                         sleep_ms(500);
                         gpio_put(led_pins[sequence[i]], 0);
                         sleep_ms(120);
@@ -280,8 +324,10 @@ int main() {
                                 gpio_put(led_pins[j], 0);
                             }
 
+                            multicore_fifo_push_blocking (0);
+
                             printf("perdeu otario do krl\n");
-                            draw_state(2, pontuacao, level);
+                            draw_state(2, 0, pontuacao, level);
                             level = 0;
                             start_f = 0;
                             break;
@@ -291,8 +337,9 @@ int main() {
                     sleep_ms(500);
                     cancel_repeating_timer(&timer_pontuacao);
                 } else {
+                    multicore_fifo_push_blocking (0);
                     printf("Ganhou");
-                    draw_state(1, pontuacao, max_level);
+                    draw_state(1, 0, pontuacao, max_level);
 
                     level = 0;
                     start_f = 0;
@@ -318,5 +365,6 @@ int main() {
                 }
             }
         }
+        __wfi();
     }
 }
