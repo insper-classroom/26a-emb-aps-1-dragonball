@@ -7,19 +7,20 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "pico/stdlib.h"
+#include "amarelo.h"
+#include "azul.h"
+#include "hardware/clocks.h"
 #include "hardware/gpio.h"
+#include "hardware/irq.h"
+#include "hardware/pwm.h"
+#include "hardware/sync.h"
 #include "image_bitmap.h"
+#include "pico/multicore.h"
 #include "tft_lcd_ili9341/gfx/gfx_ili9341.h"
 #include "tft_lcd_ili9341/ili9341/ili9341.h"
 #include "tft_lcd_ili9341/touch_resistive/touch_resistive.h"
 #include "verde.h"
 #include "vermelho.h"
-#include "amarelo.h"
-#include "azul.h"
-#include "hardware/irq.h"
-#include "hardware/clocks.h"
-#include "hardware/pwm.h"
-#include "hardware/sync.h"
 
 // Frames da animação da banana
 const uint8_t* banana_frames[] = {
@@ -50,8 +51,7 @@ int tamanho_audio;
 int* p_tamanho_audio = &tamanho_audio;
 uint8_t* p_audio;
 int wav_position = 0;
-const int AUDIO_OUT = 14; // Mudar pros pinos onde o audio for sair
-
+const int AUDIO_OUT = 14;  // Mudar pros pinos onde o audio for sair
 
 const int start_btn_pin = 11;
 // verde, azul, vermelho, amarelo
@@ -105,7 +105,7 @@ void draw_state(int state, int frame, int pontuacao, int level) {
 
 void pwm_interruption_handler() {
     pwm_clear_irq(pwm_gpio_to_slice_num(AUDIO_OUT));
-    if (wav_position < (*p_tamanho_audio << 3) -1) {
+    if (wav_position < (*p_tamanho_audio << 3) - 1) {
         if (play_flag) {
             pwm_set_gpio_level(AUDIO_OUT, p_audio[wav_position >> 3]);
             wav_position++;
@@ -128,34 +128,29 @@ void btn_callback(uint gpio, uint32_t events) {
         return;
     }
 
-    for (int i = 0; i < 4; i++) {
-        switch ((int)gpio) {
-            case 2:
-                tamanho_audio = VERDE_LENGTH;
-                p_audio = VERDE_DATA;
-                break;
-            case 3:
-                tamanho_audio = AZUL_LENGTH;
-                p_audio = AZUL_DATA;
-                break;
-            case 4:
-                tamanho_audio = VERMELHO_LENGTH;
-                p_audio = VERMELHO_DATA;
-                break;
-            case 5:
-                tamanho_audio = AMARELO_LENGTH;
-                p_audio = AMARELO_DATA;
-                break;
-            default:
-                break;
-        }
-        if ((int)gpio == btn_pins[i]) {
-            pressed_btn = i;
-            return;
-        }
+    switch ((int)gpio) {
+        case 2:
+            tamanho_audio = VERDE_LENGTH;
+            p_audio = VERDE_DATA;
+            break;
+        case 3:
+            tamanho_audio = AZUL_LENGTH;
+            p_audio = AZUL_DATA;
+            break;
+        case 4:
+            tamanho_audio = VERMELHO_LENGTH;
+            p_audio = VERMELHO_DATA;
+            break;
+        case 5:
+            tamanho_audio = AMARELO_LENGTH;
+            p_audio = AMARELO_DATA;
+            break;
+        default:
+            break;
     }
-}
 
+    pressed_btn = gpio - 2;
+}
 
 void core1_entry() {
     int playing = multicore_fifo_pop_blocking();
@@ -194,7 +189,6 @@ int main() {
     int max_level = sizeof(sequence);
     int level = 0;
     int state = 0;
-    
 
     srand(time_us_32());
 
@@ -229,7 +223,7 @@ int main() {
 
     while (true) {
         if (start_f) {
-            multicore_fifo_push_blocking (0);
+            multicore_fifo_push_blocking(0);
 
             for (int i = 0; i < 4; i++) {
                 gpio_put(led_pins[i], 1);
@@ -269,6 +263,7 @@ int main() {
                         }
 
                         gpio_put(led_pins[sequence[i]], 1);
+                        wav_position = 0;
                         irq_set_exclusive_handler(PWM_IRQ_WRAP, pwm_interruption_handler);
                         sleep_ms(500);
                         gpio_put(led_pins[sequence[i]], 0);
@@ -292,6 +287,8 @@ int main() {
                         }
 
                         if (sequence[i] == pressed_btn) {
+                            wav_position = 0;
+                            irq_set_exclusive_handler(PWM_IRQ_WRAP, pwm_interruption_handler);
                             acertos++;
 
                             gpio_put(led_pins[pressed_btn], 1);
@@ -324,10 +321,10 @@ int main() {
                                 gpio_put(led_pins[j], 0);
                             }
 
-                            multicore_fifo_push_blocking (0);
+                            multicore_fifo_push_blocking(0);
 
                             printf("perdeu otario do krl\n");
-                            draw_state(2, 0, pontuacao, level);
+                            draw_state(3, 0, pontuacao, level);
                             level = 0;
                             start_f = 0;
                             break;
@@ -337,9 +334,9 @@ int main() {
                     sleep_ms(500);
                     cancel_repeating_timer(&timer_pontuacao);
                 } else {
-                    multicore_fifo_push_blocking (0);
+                    multicore_fifo_push_blocking(0);
                     printf("Ganhou");
-                    draw_state(1, 0, pontuacao, max_level);
+                    draw_state(2, 0, pontuacao, max_level);
 
                     level = 0;
                     start_f = 0;
