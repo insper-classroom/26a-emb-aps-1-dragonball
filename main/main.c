@@ -31,7 +31,7 @@ const int AUDIO_OUT = 14;
 int wav_position = 0;
 int tamanho_audio;
 int *p_tamanho_audio = &tamanho_audio;
-uint8_t* p_audio;
+uint8_t *p_audio;
 
 const int width = 320;
 const int height = 240;
@@ -212,7 +212,28 @@ int main() {
                         }
 
                         gpio_put(led_pins[sequence[i]], 1);
-                        sleep_ms(500);
+                        switch (sequence[i]) {
+                        case (0):
+                            tamanho_audio = VERDE_LENGTH;
+                            p_audio = VERDE_DATA;
+                            break;
+                        case (1):
+                            tamanho_audio = AZUL_LENGTH;
+                            p_audio = AZUL_DATA;
+                            break;
+                        case (2):
+                            tamanho_audio = VERMELHO_LENGTH;
+                            p_audio = VERMELHO_DATA;
+                            break;
+                        case (3):
+                            tamanho_audio = AMARELO_LENGTH;
+                            p_audio = AMARELO_DATA;
+                            break;
+                        default:
+                            break;
+                        }
+                        wav_position = 0;
+                        sleep_ms(1300);
                         gpio_put(led_pins[sequence[i]], 0);
                         sleep_ms(120);
                     }
@@ -236,32 +257,9 @@ int main() {
                         if (sequence[i] == pressed_btn) {
                             acertos++;
 
-                            switch (sequence[i]) {
-                                case (0):
-                                    tamanho_audio = VERDE_LENGTH;
-                                    p_audio = VERDE_DATA;
-                                    break;
-                                case (1):
-                                    tamanho_audio = AZUL_LENGTH;
-                                    p_audio = AZUL_DATA;
-                                    break;
-                                case (2):
-                                    tamanho_audio = VERMELHO_LENGTH;
-                                    p_audio = VERMELHO_DATA;
-                                    break;
-                                case (3):
-                                    tamanho_audio = AMARELO_LENGTH;
-                                    p_audio = AMARELO_DATA;
-                                    break;
-                                default:
-                                    break;
-                            }
-
                             gpio_put(led_pins[pressed_btn], 1);
                             sleep_ms(250);
                             gpio_put(led_pins[pressed_btn], 0);
-
-                            wav_position = 0;
 
                             if (acertos == level) {
                                 acertos = 0;
@@ -288,7 +286,7 @@ int main() {
                             for (int j = 0; j < 4; j++) {
                                 gpio_put(led_pins[j], 0);
                             }
-                            
+
                             p_audio = ERROU_DATA;
                             tamanho_audio = ERROU_LENGTH;
                             wav_position = 0;
