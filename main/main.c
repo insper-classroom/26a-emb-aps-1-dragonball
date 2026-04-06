@@ -199,7 +199,6 @@ int main() {
 
     int sequence[10] = {0};
     int max_level = sizeof(sequence) / sizeof(sequence[0]);
-    int level = 0;
 
     srand(time_us_32());
 
@@ -249,14 +248,12 @@ int main() {
             sleep_ms(500);
 
             int pontuacao = 0;
-
-            level = 1;
+            int level = 1;
 
             // Gera primeiro elemento aleatorio.
             sequence[0] = rand() % 4;
 
             while (level) {
-                int acertos = 0;
                 printf("nivel %d\n", level);
 
                 if (level <= max_level) {
@@ -321,14 +318,12 @@ int main() {
                         }
 
                         if (sequence[i] == pressed_btn) {
-                            acertos++;
 
                             gpio_put(led_pins[pressed_btn], 1);
                             sleep_ms(250);
                             gpio_put(led_pins[pressed_btn], 0);
 
-                            if (acertos == level) {
-                                acertos = 0;
+                            if (i == level - 1) {
                                 pontuacao += pontos;
                                 printf("pontos rodada: %d | pontuacao total: %d\n", pontos, pontuacao);
 
