@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "pico/stdlib.h"
+#include "pico/multicore.h"
 #include "hardware/gpio.h"
 #include "hardware/pwm.h"
 #include "hardware/sync.h"
@@ -25,6 +26,7 @@
 
 // Propriedades do LCD
 #define SCREEN_ROTATION 1
+#define ANIM_FRAME_COUNT 8
 
 const int AUDIO_OUT = 14;
 
@@ -38,8 +40,12 @@ const int height = 240;
 
 const int img_height = 120;
 const int img_width = 220;
+const int banana_height = 100;
+const int banana_width = 95;
 const int img_x = (width - img_width) / 2;
 const int img_y = (height - img_height) / 2;
+const int banana_x = (width - banana_width) / 2;
+const int banana_y = (height - banana_height) / 2;
 
 const int start_btn_pin = 11;
 // verde, azul, vermelho, amarelo
@@ -49,6 +55,9 @@ const int led_pins[] = {6, 7, 8, 9};
 volatile int start_f = 0;
 volatile int pressed_btn = -1;
 volatile int timer_f = 0;
+volatile int g_timer_0 = 0;
+
+const uint8_t *banana_frames[] = {banana1, banana2, banana3, banana4, banana5, banana6, banana7, banana8};
 
 void pwm_interruption_handler() {
     pwm_clear_irq(pwm_gpio_to_slice_num(AUDIO_OUT));
@@ -58,15 +67,18 @@ void pwm_interruption_handler() {
     }
 }
 
-void draw_state(int state, int pontuacao, int level) {
+void draw_state(int state, int anim_frame, int pontuacao, int level) {
     if (state == 0) {
         gfx_fillRect(0, 0, width, height, 0x0000);
         gfx_drawBitmap(img_x, img_y, logo_bitmap, img_width, img_height, 0xFFFF);
+    } else if (state == 1) {
+        gfx_fillRect(0, 0, width, height, 0x0000);
+        gfx_drawBitmap(banana_x, banana_y, banana_frames[anim_frame], banana_width, banana_height, 0xFFFF);
     } else {
         gfx_fillRect(0, 0, width, height, 0x0000);
         gfx_setTextSize(2);
 
-        if (state == 1) {
+        if (state == 3) {
             gfx_setTextColor(0x07E0);
             gfx_drawText(
                 width / 6,
@@ -100,6 +112,11 @@ bool timer_0_callback(repeating_timer_t *rt) {
     return true; // keep repeating
 }
 
+bool timer_1_callback(repeating_timer_t *rt) {
+    g_timer_0 = 1;
+    return true; // keep repeating
+}
+
 void btn_callback(uint gpio, uint32_t events) {
     if (gpio == start_btn_pin) {
         start_f = 1;
@@ -110,6 +127,55 @@ void btn_callback(uint gpio, uint32_t events) {
         if ((int)gpio == btn_pins[i]) {
             pressed_btn = i;
             return;
+        }
+    }
+}
+
+void core1_entry() {
+    int state = multicore_fifo_pop_blocking();
+    int anim_frame = 0;
+    repeating_timer_t timer_0;
+
+    if (!add_repeating_timer_ms(100,
+                                timer_1_callback,
+                                NULL,
+                                &timer_0)) {
+        printf("Failed to add timer\n");
+    }
+
+    // Draw the first state received at startup (e.g. logo screen).
+    if (state == 0) {
+        g_timer_0 = 0;
+        draw_state(state, 0, 0, 0);
+    } else if (state == 1) {
+        draw_state(state, anim_frame, 0, 0);
+    }
+
+    while (true) {
+        tight_loop_contents();
+
+        if (multicore_fifo_rvalid()) {
+            state = multicore_fifo_pop_blocking();
+            anim_frame = 0;
+            if (state == 0) {
+                g_timer_0 = 0;
+                draw_state(state, 0, 0, 0);
+            } else if (state == 1) {
+                draw_state(state, anim_frame, 0, 0);
+            } else {
+                int level = multicore_fifo_pop_blocking();
+                int pontuacao = multicore_fifo_pop_blocking();
+                draw_state(state, 0, pontuacao, level);
+            }
+        }
+
+        if (g_timer_0) {
+            g_timer_0 = 0;
+            anim_frame = (anim_frame + 1) % ANIM_FRAME_COUNT;
+
+            if (state == 1) {
+                draw_state(state, anim_frame, 0, 0);
+            }
         }
     }
 }
@@ -132,9 +198,8 @@ int main() {
     pwm_config_set_wrap(&config, 250);
 
     int sequence[10] = {0};
-    int max_level = sizeof(sequence);
+    int max_level = sizeof(sequence) / sizeof(sequence[0]);
     int level = 0;
-    int state = 0;
 
     srand(time_us_32());
 
@@ -164,7 +229,8 @@ int main() {
         gpio_set_dir(led_pins[i], GPIO_OUT);
     }
 
-    draw_state(state, 0, 0);
+    multicore_launch_core1(core1_entry);
+    multicore_fifo_push_blocking(0);
 
     pwm_init(audio_pin_slice, &config, true);
 
@@ -172,7 +238,7 @@ int main() {
 
         if (start_f) {
 
-            draw_state(state, 0, 0);
+            multicore_fifo_push_blocking(1);
 
             for (int i = 0; i < 4; i++) {
                 gpio_put(led_pins[i], 1);
@@ -293,7 +359,9 @@ int main() {
 
                             printf("perdeu otario do krl\n");
 
-                            draw_state(2, pontuacao, level);
+                            multicore_fifo_push_blocking(2);
+                            multicore_fifo_push_blocking(level);
+                            multicore_fifo_push_blocking(pontuacao);
                             level = 0;
                             start_f = 0;
                             break;
@@ -304,7 +372,9 @@ int main() {
                     cancel_repeating_timer(&timer_pontuacao);
                 } else {
                     printf("Ganhou");
-                    draw_state(1, pontuacao, max_level);
+                    multicore_fifo_push_blocking(3);
+                    multicore_fifo_push_blocking(max_level);
+                    multicore_fifo_push_blocking(pontuacao);
 
                     level = 0;
                     start_f = 0;
