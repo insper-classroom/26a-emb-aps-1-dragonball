@@ -4,7 +4,6 @@
 
 #ifndef AZUL_H
 #define AZUL_H
-
 #define AZUL_LENGTH 11498 
 
 uint8_t AZUL_DATA[] = {
