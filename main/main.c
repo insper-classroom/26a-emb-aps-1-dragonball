@@ -123,11 +123,14 @@ void btn_callback(uint gpio, uint32_t events) {
         return;
     }
 
-    for (int i = 0; i < 4; i++) {
-        if ((int)gpio == btn_pins[i]) {
-            pressed_btn = i;
-            return;
-        }
+    if ((int)gpio == btn_pins[0]) {
+        pressed_btn = 0;
+    } else if ((int)gpio == btn_pins[1]) {
+        pressed_btn = 1;
+    } else if ((int)gpio == btn_pins[2]) {
+        pressed_btn = 2;
+    } else if ((int)gpio == btn_pins[3]) {
+        pressed_btn = 3;
     }
 }
 
