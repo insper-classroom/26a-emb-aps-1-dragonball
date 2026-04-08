@@ -277,8 +277,11 @@ int main() {
                             gpio_put(led_pins[j], 0);
                         }
 
+                        // Escolhe o som aleatoriamente
+                        int som = rand() % 4;
+
                         gpio_put(led_pins[sequence[i]], 1);
-                        switch (sequence[i]) {
+                        switch (som) {
                         case (0):
                             tamanho_audio = VERDE_LENGTH;
                             p_audio = VERDE_DATA;
