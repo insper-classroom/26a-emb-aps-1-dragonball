@@ -23,6 +23,8 @@
 #include "vermelho.h"
 #include "azul.h"
 #include "errou.h"
+#include "vitoria.h"
+#include "acertou.h"
 
 // Propriedades do LCD
 #define SCREEN_ROTATION 1
@@ -326,11 +328,15 @@ int main() {
                         if (sequence[i] == pressed_btn) {
 
                             gpio_put(led_pins[pressed_btn], 1);
+                            wav_position = 0;
+                            tamanho_audio = ACERTOU_LENGTH;
+                            p_audio = ACERTOU_DATA;
                             sleep_ms(250);
                             gpio_put(led_pins[pressed_btn], 0);
 
                             if (i == level - 1) {
                                 pontuacao += pontos;
+                                
                                 printf("pontos rodada: %d | pontuacao total: %d\n", pontos, pontuacao);
 
                                 if (level < max_level) {
@@ -373,6 +379,9 @@ int main() {
                     cancel_repeating_timer(&timer_pontuacao);
                 } else {
                     printf("Ganhou");
+                    wav_position = 0;
+                    tamanho_audio = VITORIA_LENGTH;
+                    p_audio = VITORIA_DATA;
                     multicore_fifo_push_blocking(3);
                     multicore_fifo_push_blocking(max_level);
                     multicore_fifo_push_blocking(pontuacao);
