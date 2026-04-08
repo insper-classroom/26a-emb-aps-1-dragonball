@@ -58,6 +58,7 @@ volatile int start_f = 0;
 volatile int pressed_btn = -1;
 volatile int timer_f = 0;
 volatile int g_timer_0 = 0;
+volatile bool failed = 0;
 
 const uint8_t *banana_frames[] = {banana1, banana2, banana3, banana4, banana5, banana6, banana7, banana8};
 
@@ -117,6 +118,13 @@ bool timer_0_callback(repeating_timer_t *rt) {
 bool timer_1_callback(repeating_timer_t *rt) {
     g_timer_0 = 1;
     return true; // keep repeating
+}
+
+int64_t alarm_callback(alarm_id_t id, void *user_data) {
+    failed = true;
+
+    // Can return a value here in us to fire in the future
+    return 0;
 }
 
 void btn_callback(uint gpio, uint32_t events) {
@@ -309,6 +317,13 @@ int main() {
                         sleep_ms(120);
                     }
 
+                    alarm_id_t alarm = add_alarm_in_ms(5000, alarm_callback, NULL, false);
+                    failed = 0;
+
+                    if (!alarm) {
+                        printf("Failed to add timer\n");
+                    }
+
                     for (int i = 0; i < level; i++) {
                         pressed_btn = -1;
 
@@ -322,10 +337,16 @@ int main() {
                                 }
                             }
 
+                            if (failed) {
+                                break;
+                            }
+
                             sleep_ms(10);
                         }
 
                         if (sequence[i] == pressed_btn) {
+
+                            cancel_alarm(alarm);
 
                             gpio_put(led_pins[pressed_btn], 1);
                             wav_position = 0;
@@ -336,7 +357,7 @@ int main() {
 
                             if (i == level - 1) {
                                 pontuacao += pontos;
-                                
+
                                 printf("pontos rodada: %d | pontuacao total: %d\n", pontos, pontuacao);
 
                                 if (level < max_level) {
